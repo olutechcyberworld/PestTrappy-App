@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "878411205549",
+    "project_id": "fyp-olutech",
+    "storage_bucket": "fyp-olutech.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:878411205549:android:e842de15c5a20714a62f24",
+        "android_client_info": {
+          "package_name": "com.olutech.pest_trappy_v2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkUYi31ldHkO95cq318D8eXH9FEtQVjgw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:878411205549:android:9020fbf6d3045c59a62f24",
+        "android_client_info": {
+          "package_name": "com.olutech.pesttrappy.pest_trappy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkUYi31ldHkO95cq318D8eXH9FEtQVjgw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
