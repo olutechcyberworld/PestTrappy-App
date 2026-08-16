@@ -153,7 +153,7 @@ class AboutScreen extends StatelessWidget {
             fillOpacity: 0.04,
             borderOpacity: 0.10,
             child: Text(
-              'HND Final-Year Project — Automated Pest Trapping System '
+              'Automated Pest Trapping System '
               'for Smart Agricultural Monitoring.',
               textAlign: TextAlign.center,
               style: Theme.of(

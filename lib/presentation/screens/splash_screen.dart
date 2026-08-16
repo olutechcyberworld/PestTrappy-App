@@ -74,11 +74,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
+          // Gradient background
           Container(
             decoration: const BoxDecoration(
               gradient: AppTheme.backgroundGradient,
             ),
           ),
+
+          // Radial glow behind the logo
           Center(
             child: Container(
               width: 300,
@@ -94,6 +97,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               ),
             ),
           ),
+
+          // Logo + branding
           Center(
             child: FadeTransition(
               opacity: _fadeAnim,
@@ -102,6 +107,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Glass icon badge
                     ClipRRect(
                       borderRadius: BorderRadius.circular(28),
                       child: BackdropFilter(
@@ -125,7 +131,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                         ),
                       ),
                     ),
+
                     const SizedBox(height: 28),
+
                     Text(
                       'PestTrappy',
                       style: Theme.of(context).textTheme.headlineLarge
@@ -135,7 +143,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                             letterSpacing: 1.2,
                           ),
                     ),
+
                     const SizedBox(height: 8),
+
                     Text(
                       'Smart Agricultural Monitoring',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -143,7 +153,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                         letterSpacing: 0.4,
                       ),
                     ),
+
                     const SizedBox(height: 56),
+
                     SizedBox(
                       width: 32,
                       height: 32,
@@ -157,6 +169,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               ),
             ),
           ),
+
+          // Brand footer — "Powered by OLUTECH CYBERWORLD"
           Positioned(
             bottom: 40,
             left: 0,
@@ -166,19 +180,31 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               child: Column(
                 children: [
                   Text(
-                    'OLUTECH CYBERWORLD',
+                    'Powered by',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: AppTheme.fontSecondary.withValues(alpha: 0.6),
-                      letterSpacing: 2.5,
+                      color: AppTheme.fontSecondary.withValues(alpha: 0.55),
+                      letterSpacing: 0.8,
+                      fontSize: 10,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
+                    'OLUTECH CYBERWORLD',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: AppTheme.fontPrimary.withValues(alpha: 0.85),
+                      letterSpacing: 2.8,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
                     'v1.0.0',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: AppTheme.fontSecondary.withValues(alpha: 0.4),
+                      color: AppTheme.fontSecondary.withValues(alpha: 0.45),
                     ),
                   ),
                 ],
