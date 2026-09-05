@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:mqtt_client/mqtt_client.dart';
@@ -16,17 +15,13 @@ import '../../domain/models/live_status.dart';
 /// - Subscribes to the five per-device state and heartbeat topics.
 /// - Accumulates retained messages from each topic into a single [LiveStatus]
 ///   value emitted on [liveStatusStream].
-/// - Maintains a 90-second heartbeat watchdog timer; sets [LiveStatus
-///   .isUnresponsive] when no heartbeat is received within the window.
+/// - Maintains a 90-second heartbeat watchdog timer; sets
+///   [LiveStatus.isUnresponsive] when no heartbeat is received within the window.
 /// - Implements exponential backoff reconnection: 2 s initial delay, doubling
 ///   on each failure, ceiling of 60 s (constants from [AppConfig]).
 ///
 /// This service is subscribe-only. The Flutter application never publishes to
 /// any MQTT topic (Backend Architecture Section 2.7, ACL table).
-///
-/// Lifecycle: [connect] is called once during the application initialisation
-/// sequence (Flutter Architecture Section 7, Step 5) with the resolved
-/// [deviceId]. [dispose] is called on MQTT client disconnect at re-pair.
 class MqttClientService {
   MqttClientService._();
   static final MqttClientService instance = MqttClientService._();
@@ -40,8 +35,6 @@ class MqttClientService {
   bool _disposed = false;
   bool _reconnecting = false;
 
-  /// Current accumulated live status. Mutated by [_applyRetainedMessage] as
-  /// each retained or live state message arrives.
   LiveStatus _currentStatus = const LiveStatus.loading();
 
   final StreamController<LiveStatus> _statusController =
@@ -54,17 +47,8 @@ class MqttClientService {
   // Public API
   // ---------------------------------------------------------------------------
 
-  /// Broadcast stream of [LiveStatus] values. Begins with [LiveStatus.loading]
-  /// and emits a new value on every topic update or heartbeat timer change.
-  /// Never closes while the service is alive; consumers do not need to handle
-  /// a done event during normal operation.
   Stream<LiveStatus> get liveStatusStream => _statusController.stream;
 
-  /// Establishes the EMQX connection for [deviceId] and begins topic
-  /// subscriptions. Safe to call from the splash screen's async init sequence.
-  ///
-  /// Emits [LiveStatus.loading] immediately so the status screen shows a
-  /// loading state while the broker delivers retained messages.
   Future<void> connect(String deviceId) async {
     _deviceId = deviceId;
     _disposed = false;
@@ -72,9 +56,6 @@ class MqttClientService {
     await _connect();
   }
 
-  /// Cancels the heartbeat timer, disconnects from the broker, and disposes
-  /// the stream controller. Called during the re-pair flow (Flutter
-  /// Architecture Section 6.3) before navigating to the pairing screen.
   void dispose() {
     _disposed = true;
     _heartbeatTimer?.cancel();
@@ -89,6 +70,9 @@ class MqttClientService {
   Future<void> _connect() async {
     if (_disposed || _deviceId == null) return;
 
+    // Use a timestamp suffix to guarantee a unique clientId on every attempt.
+    // EMQX Cloud Serverless rejects connections from a clientId that is already
+    // connected; the timestamp prevents accidental collisions across reconnects.
     final clientId =
         'flutter_${_deviceId}_${DateTime.now().millisecondsSinceEpoch}';
 
@@ -96,15 +80,20 @@ class MqttClientService {
       ..port = AppConfig.emqxPort
       ..secure = true
       ..keepAlivePeriod = 60
+      // Increase connection timeout: default 5 s is too short for some mobile
+      // networks. 30 s gives the TLS handshake time to complete on poor signals.
+      // ..connectionTimeoutPeriod = 30
       ..logging(on: false)
       ..onDisconnected = _onDisconnected
       ..onConnected = _onConnected
       ..onSubscribed = _onSubscribed;
 
-    // EMQX Cloud Serverless uses CA-signed certificates; the system trust
-    // store on Android is sufficient. No custom certificate pinning is needed
-    // at prototype scale.
-    _client!.securityContext = SecurityContext.defaultContext;
+    // Do NOT set securityContext explicitly on Android. The mqtt_client package
+    // initialises its own TLS context from the platform trust store when
+    // secure = true and securityContext is left null. Assigning
+    // SecurityContext.defaultContext directly can interfere with that
+    // initialisation on some Android versions and cause the broker to drop the
+    // connection before sending a CONNACK.
 
     final connectMessage = MqttConnectMessage()
         .withClientIdentifier(clientId)
@@ -115,8 +104,13 @@ class MqttClientService {
     _client!.connectionMessage = connectMessage;
 
     try {
+      _log(
+        'Connecting to ${AppConfig.emqxHost}:${AppConfig.emqxPort} '
+        'as $clientId',
+      );
       final status = await _client!.connect();
       if (status?.state != MqttConnectionState.connected) {
+        _log('Connection returned non-connected state: ${status?.state}');
         _scheduleReconnect();
       }
     } on Exception catch (e) {
@@ -145,7 +139,6 @@ class MqttClientService {
       _client!.subscribe(topic, MqttQos.atLeastOnce);
     }
 
-    // Listen to the updates stream for incoming messages.
     _client!.updates?.listen(_onMessage);
   }
 
@@ -160,26 +153,14 @@ class MqttClientService {
       final raw = MqttPublishPayload.bytesToStringAsString(
         payload.payload.message,
       );
-
       _applyMessage(topic, raw);
     }
   }
 
-  /// Applies a single incoming MQTT message to [_currentStatus] and emits the
-  /// updated value on [liveStatusStream].
-  ///
-  /// Uses [LiveStatus.copyWith] so that each arriving retained message updates
-  /// only its own field, leaving fields from topics not yet received intact.
-  /// This is the correct pattern for retained-message accumulation: the broker
-  /// delivers each retained message independently rather than as a combined
-  /// payload.
   void _applyMessage(String topic, String raw) {
     final id = _deviceId;
     if (id == null) return;
 
-    // Strip JSON manually for the small, fixed payloads used here to avoid
-    // importing a JSON library into the service layer. Each payload has at
-    // most two keys; a simple string search is deterministic and auditable.
     String? extractStringField(String json, String key) {
       final pattern = '"$key"';
       final keyIndex = json.indexOf(pattern);
@@ -192,31 +173,30 @@ class MqttClientService {
     }
 
     if (topic == 'pestTrapping/$id/state/uvLamp') {
-      final status = extractStringField(raw, 'status');
-      if (status != null) {
-        _currentStatus = _currentStatus.copyWith(uvLamp: status);
+      final s = extractStringField(raw, 'status');
+      if (s != null) {
+        _currentStatus = _currentStatus.copyWith(uvLamp: s);
         _emit(_currentStatus);
       }
     } else if (topic == 'pestTrapping/$id/state/trapDoor') {
-      final status = extractStringField(raw, 'status');
-      if (status != null) {
-        _currentStatus = _currentStatus.copyWith(trapDoor: status);
+      final s = extractStringField(raw, 'status');
+      if (s != null) {
+        _currentStatus = _currentStatus.copyWith(trapDoor: s);
         _emit(_currentStatus);
       }
     } else if (topic == 'pestTrapping/$id/state/zapper') {
-      final status = extractStringField(raw, 'status');
-      if (status != null) {
-        _currentStatus = _currentStatus.copyWith(zapper: status);
+      final s = extractStringField(raw, 'status');
+      if (s != null) {
+        _currentStatus = _currentStatus.copyWith(zapper: s);
         _emit(_currentStatus);
       }
     } else if (topic == 'pestTrapping/$id/state/connection') {
-      final status = extractStringField(raw, 'status');
-      if (status != null) {
-        _currentStatus = _currentStatus.copyWith(connectionStatus: status);
+      final s = extractStringField(raw, 'status');
+      if (s != null) {
+        _currentStatus = _currentStatus.copyWith(connectionStatus: s);
         _emit(_currentStatus);
       }
     } else if (topic == 'pestTrapping/$id/heartbeat') {
-      // Any heartbeat message resets the unresponsive flag and the watchdog.
       _currentStatus = _currentStatus.copyWith(isUnresponsive: false);
       _emit(_currentStatus);
       _resetHeartbeatTimer();
@@ -251,7 +231,6 @@ class MqttClientService {
       _reconnecting = false;
       if (_disposed) return;
 
-      // Advance the backoff delay for the next failure, capped at the ceiling.
       _reconnectDelay = Duration(
         seconds: (_reconnectDelay.inSeconds * 2).clamp(
           0,
@@ -269,7 +248,6 @@ class MqttClientService {
 
   void _onConnected() {
     _log('Connected to EMQX broker.');
-    // Reset the backoff delay on a successful connection.
     _reconnectDelay = AppConfig.mqttInitialReconnectDelay;
     _subscribeToTopics();
     _resetHeartbeatTimer();
@@ -280,8 +258,6 @@ class MqttClientService {
     _heartbeatTimer?.cancel();
 
     if (!_disposed) {
-      // Emit offline status immediately so the UI reacts without waiting for
-      // the reconnection attempt to complete.
       _currentStatus = _currentStatus.copyWith(
         connectionStatus: 'offline',
         isUnresponsive: false,
