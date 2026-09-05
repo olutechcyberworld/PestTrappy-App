@@ -37,8 +37,7 @@ class SupabaseClientService {
   /// issued through this reference automatically carry the
   /// `Accept-Profile: pest_trap` header required by PostgREST for non-public
   /// schemas (Backend Architecture Section 4.1).
-  SupabaseClient get _db =>
-      Supabase.instance.client.schema('pest_trap') as SupabaseClient;
+  SupabaseQuerySchema get _db => Supabase.instance.client.schema('pest_trap');
 
   /// Unscoped client reference, used only for Realtime channel operations.
   /// Realtime subscriptions require the base client, not the schema-scoped

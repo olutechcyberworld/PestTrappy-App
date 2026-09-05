@@ -98,7 +98,6 @@ class MqttClientService {
     final connectMessage = MqttConnectMessage()
         .withClientIdentifier(clientId)
         .authenticateAs(AppConfig.emqxUsername, AppConfig.emqxPassword)
-        .withWillQos(MqttQos.atLeastOnce)
         .startClean();
 
     _client!.connectionMessage = connectMessage;
